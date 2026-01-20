@@ -1,12 +1,12 @@
 # CoxMT
 
-Semi-supervised Cox proportional hazards training with a mean-teacher setup for RNA-only or RNA+WSI inputs.
+ CoxMT: the  Cox proportional hazards model trained with a deep semi-supervised learning approach named  the mean-teacher (MT) method.
 
 ## Overview
 This repository implements:
 - A Cox proportional hazards model for survival analysis.
-- A mean-teacher (student/teacher) consistency objective for semi-supervised training.
-- Single-modal (RNA) and multi-modal (RNA + WSI) variants.
+- A mean-teacher method for semi-supervised training.
+- Single-modal and multi-modal variants.
 
 The training script reads preprocessed RNA features and optional WSI features, trains a student model,
 and updates a teacher model by exponential moving average (EMA).
