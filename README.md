@@ -33,7 +33,11 @@ The training script expects preprocessed files under `data/processed`.
 
 ### RNA preprocessing (TCGA + GEO)
 ```bash
-python preprocessing/extract_rna.py
+python preprocessing/extract_rna.py \
+  --tcga-expression data/TCGA_BRCA_FPKM.csv \
+  --tcga-clinical data/TCGA_CDR.csv \
+  --geo-expression data/GSE96058_FPKM.csv \
+  --output-dir data/processed
 ```
 Outputs:
 - `data/processed/tcga_rna_features.csv`
@@ -46,7 +50,9 @@ Expected formats:
 
 ### WSI preprocessing (optional)
 ```bash
-python preprocessing/extract_wsi.py
+python preprocessing/extract_wsi.py \
+  --wsi-dir data/raw_wsi \
+  --output-dir data/processed_wsi
 ```
 Outputs:
 - `data/processed_wsi/<sample_id>_avg.npy` (1x1024)
