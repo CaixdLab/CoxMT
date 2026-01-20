@@ -1,3 +1,4 @@
+import os
 import torch
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
@@ -8,7 +9,7 @@ class SurvivalDataset(Dataset):
     Standard PyTorch Dataset for Survival Analysis.
     Returns: (features, time, event_indicator)
     """
-    def __init__(self, rna_file, clinical_file=None, wsi_dir=None, mode='labeled'):
+    def __init__(self, rna_file, clinical_file=None, wsi_dir=None, wsi_feature_type="avg", mode='labeled'):
         """
         Args:
             rna_file (str): Path to processed RNA-seq CSV.
@@ -19,6 +20,7 @@ class SurvivalDataset(Dataset):
         self.rna_data = pd.read_csv(rna_file, index_col=0)
         self.mode = mode
         self.wsi_dir = wsi_dir
+        self.wsi_feature_type = wsi_feature_type
         
         if self.mode == 'labeled':
             self.clinical = pd.read_csv(clinical_file, index_col=0)
@@ -44,21 +46,28 @@ class SurvivalDataset(Dataset):
         sample_id = self.rna_data.index[idx]
         
         # 2. Load WSI Features (if available)
-        # Returns zero vector if WSI is not used/found
-        wsi_feat = np.zeros((1024,), dtype=np.float32) # Default placeholder
-        if self.wsi_dir:
-            wsi_path = f"{self.wsi_dir}/{sample_id}_avg.npy" # Load precomputed avg
-            try:
-                wsi_feat = np.load(wsi_path).astype(np.float32)
-            except FileNotFoundError:
-                pass # Handle missing WSI if necessary
-
-        return {
+        item = {
             'x_rna': torch.tensor(rna_feat),
-            'x_wsi': torch.tensor(wsi_feat),
             't': torch.tensor(self.times[idx]),
             'e': torch.tensor(self.events[idx])
         }
+
+        if self.wsi_dir:
+            if self.wsi_feature_type == "seq":
+                wsi_path = f"{self.wsi_dir}/{sample_id}_seq.npy"
+                if not os.path.exists(wsi_path):
+                    raise FileNotFoundError(f"Missing WSI sequence features: {wsi_path}")
+                wsi_feat = np.load(wsi_path).astype(np.float32)
+                item['x_wsi_seq'] = torch.tensor(wsi_feat)
+            else:
+                wsi_path = f"{self.wsi_dir}/{sample_id}_avg.npy"
+                if os.path.exists(wsi_path):
+                    wsi_feat = np.load(wsi_path).astype(np.float32)
+                else:
+                    wsi_feat = np.zeros((1024,), dtype=np.float32)
+                item['x_wsi'] = torch.tensor(wsi_feat)
+
+        return item
 
 def get_dataloaders(config):
     """
@@ -68,7 +77,8 @@ def get_dataloaders(config):
     train_ds = SurvivalDataset(
         rna_file=config['tcga_rna_path'],
         clinical_file=config['tcga_clinical_path'],
-        wsi_dir=config.get('wsi_dir')
+        wsi_dir=config.get('wsi_dir'),
+        wsi_feature_type=config.get('wsi_feature_type', 'avg')
     )
     
     # Unlabeled Data (GEO) - Optional
@@ -76,6 +86,8 @@ def get_dataloaders(config):
     if config.get('geo_rna_path'):
         unlabeled_ds = SurvivalDataset(
             rna_file=config['geo_rna_path'],
+            wsi_dir=config.get('geo_wsi_dir'),
+            wsi_feature_type=config.get('wsi_feature_type', 'avg'),
             mode='unlabeled'
         )
 

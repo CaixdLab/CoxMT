@@ -15,7 +15,7 @@ def update_ema_variables(model, ema_model, alpha, global_step):
 
 def add_noise(x, sigma=0.1):
     """
-    Adds Gaussian noise to input features[cite: 173].
+    Adds Gaussian noise to input features.
     Used for consistency regularization.
     """
     if sigma <= 0:

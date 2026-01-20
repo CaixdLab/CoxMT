@@ -1,0 +1,15 @@
+name: coxmt
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pip
+  - numpy
+  - pandas
+  - lifelines
+  - pytorch
+  - torchvision
+  - pillow
+  - pip:
+      - tqdm

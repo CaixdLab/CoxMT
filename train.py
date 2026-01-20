@@ -31,7 +31,11 @@ def create_model(config):
 
 def train_cox_mt():
     # 1. Setup
-    device = torch.device(CONFIG['device'])
+    device_name = CONFIG['device']
+    if device_name == 'cuda' and not torch.cuda.is_available():
+        print("CUDA not available, falling back to CPU.")
+        device_name = 'cpu'
+    device = torch.device(device_name)
     torch.manual_seed(CONFIG['seed'])
     np.random.seed(CONFIG['seed'])
     os.makedirs(CONFIG['save_dir'], exist_ok=True)
@@ -54,7 +58,7 @@ def train_cox_mt():
     student_model = create_model(CONFIG)
     teacher_model = create_model(CONFIG)
     
-    # [cite_start]Initialize Teacher weights to match Student exactly [cite: 168]
+    # Initialize Teacher weights to match Student exactly.
     teacher_model.load_state_dict(student_model.state_dict())
     
     # Teacher does not require gradients (updated via EMA)
@@ -84,42 +88,69 @@ def train_cox_mt():
 
         for i, batch_labeled in enumerate(labeled_loader):
             # --- Prepare Labeled Data ---
-            x_l = batch_labeled['x_rna'].to(device) # Or x_wsi depending on modality
+            x_l = batch_labeled['x_rna'].to(device)
             t_l = batch_labeled['t'].to(device)
             e_l = batch_labeled['e'].to(device)
+            x_l_wsi = None
+            if CONFIG['model_type'] == 'multi_modal':
+                if 'x_wsi_seq' not in batch_labeled:
+                    raise ValueError("Multi-modal training requires WSI sequence features.")
+                x_l_wsi = batch_labeled['x_wsi_seq'].to(device)
             
             # --- Prepare Unlabeled Data (if available) ---
             x_u = None
+            x_u_wsi = None
             if unlabeled_iter:
                 try:
                     batch_unlabeled = next(unlabeled_iter)
                     x_u = batch_unlabeled['x_rna'].to(device)
+                    if CONFIG['model_type'] == 'multi_modal' and 'x_wsi_seq' in batch_unlabeled:
+                        x_u_wsi = batch_unlabeled['x_wsi_seq'].to(device)
                 except StopIteration:
                     unlabeled_iter = cycle(unlabeled_loader)
                     batch_unlabeled = next(unlabeled_iter)
                     x_u = batch_unlabeled['x_rna'].to(device)
-            
+                    if CONFIG['model_type'] == 'multi_modal' and 'x_wsi_seq' in batch_unlabeled:
+                        x_u_wsi = batch_unlabeled['x_wsi_seq'].to(device)
+            if CONFIG['model_type'] == 'multi_modal' and x_u is not None and x_u_wsi is None:
+                # Unlabeled data missing WSI features; disable unlabeled branch for this run.
+                x_u = None
+                unlabeled_iter = None
+
             # Combine Labeled and Unlabeled for Consistency Step
             if x_u is not None:
                 x_combined = torch.cat([x_l, x_u], dim=0)
+                if CONFIG['model_type'] == 'multi_modal':
+                    x_wsi_combined = torch.cat([x_l_wsi, x_u_wsi], dim=0)
             else:
                 x_combined = x_l
+                if CONFIG['model_type'] == 'multi_modal':
+                    x_wsi_combined = x_l_wsi
 
-            # [cite_start]--- Noise Injection [cite: 103, 172] ---
+            # --- Noise Injection ---
             # Add Gaussian noise to inputs for both student and teacher
             noise_sigma = CONFIG['noise_sigma']
             x_student = add_noise(x_combined, sigma=noise_sigma)
             x_teacher = add_noise(x_combined, sigma=noise_sigma) # Independent noise instance
+            if CONFIG['model_type'] == 'multi_modal':
+                x_wsi_student = add_noise(x_wsi_combined, sigma=noise_sigma)
+                x_wsi_teacher = add_noise(x_wsi_combined, sigma=noise_sigma)
 
             # --- Forward Passes ---
-            pred_student = student_model(x_student)
+            if CONFIG['model_type'] == 'multi_modal':
+                pred_student = student_model(x_student, x_wsi_student)
+            else:
+                pred_student = student_model(x_student)
             
             with torch.no_grad():
-                pred_teacher = teacher_model(x_teacher)
+                if CONFIG['model_type'] == 'multi_modal':
+                    pred_teacher = teacher_model(x_teacher, x_wsi_teacher)
+                else:
+                    pred_teacher = teacher_model(x_teacher)
 
             # --- Loss Calculation ---
             
-            # [cite_start]1. Supervised Loss (L_s) [cite: 171-172]
+            # 1. Supervised Loss (L_s)
             # Calculated ONLY on Labeled Uncensored Data
             # Note: pred_student contains [labeled_batch, unlabeled_batch]
             # We slice the first len(x_l) parts corresponding to labeled data
@@ -132,7 +163,7 @@ def train_cox_mt():
             else:
                 loss_s = torch.tensor(0.0, device=device)
 
-            # [cite_start]2. Unsupervised/Consistency Loss (L_u) [cite: 174-175]
+            # 2. Unsupervised/Consistency Loss (L_u)
             # Calculated on:
             #   a) Labeled Censored Data (e=0)
             #   b) All Unlabeled Data
@@ -159,7 +190,7 @@ def train_cox_mt():
             loss_u = (loss_u_censored + loss_u_unlabeled) / 2.0 if x_u is not None else loss_u_censored
 
             # --- Total Loss ---
-            # [cite_start]L = L_s + w * L_u [cite: 178]
+            # L = L_s + w * L_u
             w = CONFIG['consistency_w']
             total_loss = loss_s + (w * loss_u)
 
@@ -168,7 +199,7 @@ def train_cox_mt():
             total_loss.backward()
             optimizer.step()
 
-            # [cite_start]--- EMA Update [cite: 169] ---
+            # --- EMA Update ---
             # Update Teacher weights
             update_ema_variables(student_model, teacher_model, CONFIG['ema_alpha'], global_step)
             global_step += 1
@@ -198,6 +229,10 @@ def train_cox_mt():
         if train_c_index > best_c_index:
             best_c_index = train_c_index
             torch.save(student_model.state_dict(), f"{CONFIG['save_dir']}/best_student.pth")
+
+
+if __name__ == "__main__":
+    train_cox_mt()
             torch.save(teacher_model.state_dict(), f"{CONFIG['save_dir']}/best_teacher.pth")
 
 if __name__ == "__main__":
