@@ -1,15 +1,15 @@
-# CoxMT
+# Cox-MT
 
- CoxMT: the  Cox proportional hazards model trained with a deep semi-supervised learning approach named  the mean-teacher (MT) method.
+ Cox-MT: the  Cox proportional hazards model trained with a deep semi-supervised learning approach named  the mean-teacher (MT) method.
 
 ## Overview
 This repository implements:
 - A Cox proportional hazards model for survival analysis.
 - A mean-teacher method for semi-supervised training.
-- Single-modal and multi-modal variants.
+- Single-modal and multi-modal Cox-MT models.
 
-The training script reads preprocessed RNA features and optional WSI features, trains a student model,
-and updates a teacher model by exponential moving average (EMA).
+It also includes the scripts for processing the RNA-seq and whole slide image (WSI) data from The Cancer Genome Atlas (TCGA) and the Gene Expression Omnibus (GEO) as described in the paper. These data were used to train Cox-NT models for predicitng cancer prognosis. 
+
 
 ## Repository layout
 - `train.py`: training entrypoint (student/teacher, losses, checkpoints).
