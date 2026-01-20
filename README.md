@@ -8,7 +8,7 @@ This repository implements:
 - A mean-teacher method for semi-supervised training.
 - Single-modal and multi-modal Cox-MT models.
 
-It also includes the scripts for processing the RNA-seq and whole slide image (WSI) data from The Cancer Genome Atlas (TCGA) and the Gene Expression Omnibus (GEO) as described in the paper. These data were used to train Cox-NT models for predicitng cancer prognosis. 
+It also includes the scripts for processing the RNA-seq and whole slide image (WSI) data from The Cancer Genome Atlas (TCGA) and the Gene Expression Omnibus (GEO) as described in the paper. These data were used to train Cox-MT models for predicitng cancer prognosis. 
 
 
 ## Repository layout
