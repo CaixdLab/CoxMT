@@ -97,3 +97,6 @@ Checkpoints are saved in `checkpoints/` as `best_student.pth`.
 - If `geo_wsi_dir` is not provided, unlabeled data is used only for RNA.
 - The WSI preprocessing script uses DINOv2 via `torch.hub` and may need network access.
 - For real WSI pipelines, replace the placeholder ROI logic in `preprocessing/extract_wsi.py`.
+
+## Reference
+Sun, A., Chen, Z., & Cai, X. (2026). Deep Semi-Supervised Survival Analysis for Predicting Cancer Prognosis. arXiv preprint arXiv:2601.20729.
